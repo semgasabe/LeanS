@@ -1,0 +1,879 @@
+openapi: 3.0.3
+info:
+  title: LeanStock API
+  description: Inventory Management System API for LeanStock
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Resource not found"
+        code:
+          type: string
+          example: "NOT_FOUND"
+
+    Pagination:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+          example: "clxyz123"
+        hasMore:
+          type: boolean
+          example: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "clxyz123abc"
+        email:
+          type: string
+          example: "manager@store.com"
+        name:
+          type: string
+          example: "Aibek Dzhaksybekov"
+        role:
+          type: string
+          enum: [ADMIN, MANAGER, STAFF]
+          example: "MANAGER"
+        locationId:
+          type: string
+          nullable: true
+          example: "clxyz456def"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "clprod001"
+        name:
+          type: string
+          example: "Samsung Galaxy S24"
+        sku:
+          type: string
+          example: "SGS24-256-BLK"
+        description:
+          type: string
+          example: "Samsung Galaxy S24 256GB Black"
+        price:
+          type: number
+          format: decimal
+          example: 450000.00
+        createdAt:
+          type: string
+          format: date-time
+
+    Inventory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "clinv001"
+        productId:
+          type: string
+          example: "clprod001"
+        locationId:
+          type: string
+          example: "clloc001"
+        quantity:
+          type: integer
+          example: 25
+        minQuantity:
+          type: integer
+          example: 10
+        discountPct:
+          type: integer
+          example: 0
+          description: "Dead stock discount percentage (0-50)"
+        daysInInventory:
+          type: integer
+          example: 12
+        product:
+          $ref: '#/components/schemas/Product'
+
+    StockMovement:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "clmov001"
+        inventoryId:
+          type: string
+          example: "clinv001"
+        type:
+          type: string
+          enum: [IN, SALE, ADJUSTMENT, DAMAGE, TRANSFER_IN, TRANSFER_OUT]
+        quantity:
+          type: integer
+          example: 5
+        note:
+          type: string
+          nullable: true
+          example: "Damaged in warehouse"
+        createdAt:
+          type: string
+          format: date-time
+
+    Location:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "clloc001"
+        name:
+          type: string
+          example: "Almaty Central Warehouse"
+        address:
+          type: string
+          example: "Almaty, Alatau district, Tole Bi 45"
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ─────────── AUTH ───────────
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email:
+                  type: string
+                  example: "newuser@store.com"
+                password:
+                  type: string
+                  minLength: 8
+                  example: "SecurePass123"
+                name:
+                  type: string
+                  example: "Aibek Seitkali"
+      responses:
+        '201':
+          description: User created - verification email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  accessToken:
+                    type: string
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login and get JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  example: "manager@store.com"
+                password:
+                  type: string
+                  example: "SecurePass123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials or email not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Get new access token using refresh token
+      security: []
+      responses:
+        '200':
+          description: New access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+        '401':
+          description: Invalid or expired refresh token
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout and revoke refresh token
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Get current user info
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/verify-email/{token}:
+    post:
+      tags: [auth]
+      summary: Verify email address
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email verified successfully"
+        '400':
+          description: Invalid or expired token
+
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+      responses:
+        '200':
+          description: Reset link sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/reset-password/{token}:
+    post:
+      tags: [auth]
+      summary: Reset password using token
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password reset successfully
+        '400':
+          description: Invalid or expired token
+
+  # ─────────── PRODUCTS ───────────
+  /products:
+    get:
+      tags: [products]
+      summary: List all products
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [products]
+      summary: Create a new product (Manager/Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, sku, price]
+              properties:
+                name:
+                  type: string
+                sku:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '403':
+          description: Not authorized
+
+  /products/{id}:
+    get:
+      tags: [products]
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+
+    put:
+      tags: [products]
+      summary: Update product (Manager/Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+      responses:
+        '200':
+          description: Updated product
+        '403':
+          description: Not authorized
+        '404':
+          description: Product not found
+
+    delete:
+      tags: [products]
+      summary: Delete product (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted successfully
+        '403':
+          description: Admin only
+        '404':
+          description: Product not found
+
+  # ─────────── INVENTORY ───────────
+  /inventory:
+    get:
+      tags: [inventory]
+      summary: List inventory
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: locationId
+          in: query
+          schema:
+            type: string
+        - name: deadStock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Inventory'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /inventory/transfer:
+    post:
+      tags: [inventory]
+      summary: Transfer stock between locations (Atomic with Redis lock)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, fromLocationId, toLocationId, quantity]
+              properties:
+                productId:
+                  type: string
+                  example: "clprod001"
+                fromLocationId:
+                  type: string
+                  example: "clloc001"
+                toLocationId:
+                  type: string
+                  example: "clloc002"
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 10
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Transfer completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  transferred:
+                    type: integer
+                  from:
+                    type: object
+                  to:
+                    type: object
+        '400':
+          description: Insufficient stock or same location
+        '403':
+          description: Manager/Admin only
+
+  /inventory/{id}/movements:
+    post:
+      tags: [inventory]
+      summary: Record a stock movement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, quantity]
+              properties:
+                type:
+                  type: string
+                  enum: [IN, SALE, ADJUSTMENT, DAMAGE]
+                quantity:
+                  type: integer
+                  minimum: 1
+                note:
+                  type: string
+      responses:
+        '201':
+          description: Movement recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+        '400':
+          description: Insufficient stock
+
+    get:
+      tags: [inventory]
+      summary: Get movement history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Movement history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StockMovement'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  # ─────────── LOCATIONS ───────────
+  /locations:
+    get:
+      tags: [locations]
+      summary: List locations
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Location list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [locations]
+      summary: Create location (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, address]
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '403':
+          description: Admin only
+
+  /locations/{id}:
+    put:
+      tags: [locations]
+      summary: Update location (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Updated location
+        '403':
+          description: Admin only
+        '404':
+          description: Location not found
+
+    delete:
+      tags: [locations]
+      summary: Delete location (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Admin only
+        '404':
+          description: Location not found
+
+  # ─────────── USERS ───────────
+  /users:
+    get:
+      tags: [users]
+      summary: List users (Admin only)
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [ADMIN, MANAGER, STAFF]
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '403':
+          description: Admin only
+
+  /users/{id}:
+    put:
+      tags: [users]
+      summary: Update user (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [ADMIN, MANAGER, STAFF]
+                locationId:
+                  type: string
+      responses:
+        '200':
+          description: Updated user
+        '403':
+          description: Admin only
+        '404':
+          description: User not found
+
+    delete:
+      tags: [users]
+      summary: Delete user (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Admin only
+        '404':
+          description: User not found
+
+  # ─────────── BACKGROUND JOBS ───────────
+  /jobs/decay/trigger:
+    post:
+      tags: [background-jobs]
+      summary: Manually trigger dead stock decay worker (Admin only)
+      responses:
+        '200':
+          description: Decay job triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  jobId:
+                    type: string
+        '403':
+          description: Admin only
+        '500':
+          description: Server error
+
+  /jobs/queue/status:
+    get:
+      tags: [background-jobs]
+      summary: Get email queue status (Admin only)
+      responses:
+        '200':
+          description: Queue status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waiting:
+                    type: integer
+                  active:
+                    type: integer
+                  completed:
+                    type: integer
+                  failed:
+                    type: integer
+        '403':
+          description: Admin only
