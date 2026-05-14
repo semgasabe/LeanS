@@ -24,6 +24,7 @@ const jobController = require('./controllers/jobController');
 
 const app = express();
 
+app.use('/api/v1/tenants', require('./routes/tenant.routes'));
 // ── CORS ───────────────────────────────────────────────────────────────────
 // No wildcard origins in production - configured from env
 app.use(cors({

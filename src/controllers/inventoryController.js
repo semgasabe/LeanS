@@ -1,10 +1,9 @@
-
+// src/controllers/inventoryController.js
 const { z } = require('zod');
 const prisma = require('../config/database');
 const asyncHandler = require('../utils/asyncHandler');
 const { parsePaginationParams, buildCursorQuery, buildPaginationResult } = require('../utils/pagination');
 const inventoryService = require('../services/inventoryService');
-const auditService = require('../services/auditService');
 
 const listInventory = asyncHandler(async (req, res) => {
   const { limit, cursor } = parsePaginationParams(req.query);
@@ -52,7 +51,6 @@ const createInventory = asyncHandler(async (req, res) => {
   });
   const data = schema.parse(req.body);
 
-  // Verify product and location belong to this tenant
   const product = await prisma.product.findFirst({
     where: { id: data.productId, tenantId: req.user.tenantId },
   });
@@ -75,25 +73,14 @@ const createInventory = asyncHandler(async (req, res) => {
     },
   });
 
-  await auditService.log({
-    tenantId: req.user.tenantId,
-    userId: req.user.userId,
-    action: 'CREATE_INVENTORY',
-    tableName: 'Inventory',
-    recordId: item.id,
-    newValues: data,
-  });
-
   res.status(201).json(item);
 });
 
-// Record a stock movement (SALE, IN, ADJUSTMENT, DAMAGE)
 const recordMovement = asyncHandler(async (req, res) => {
   const result = await inventoryService.recordMovement(req.params.id, req.body, req.user);
   res.status(201).json(result);
 });
 
-// Get movement history for one inventory item (cursor pagination)
 const getMovements = asyncHandler(async (req, res) => {
   const { limit, cursor } = parsePaginationParams(req.query);
 
@@ -113,20 +100,12 @@ const getMovements = asyncHandler(async (req, res) => {
   res.json(buildPaginationResult(items, limit));
 });
 
-// COMPLEXITY_REQ_1: Atomic transfer with Redis distributed lock + Prisma transaction
 const transferStock = asyncHandler(async (req, res) => {
   const result = await inventoryService.transferStock(req.body, req.user);
   res.json(result);
 });
 
-// Low stock alerts - items where quantity is at or below minQuantity
-// Pure Prisma query, no raw SQL
 const getLowStockAlerts = asyncHandler(async (req, res) => {
-  const { limit, cursor } = parsePaginationParams(req.query);
-
-  // We can't use WHERE quantity <= minQuantity with Prisma (cross-column comparison)
-  // so we fetch and filter. For large datasets, a DB view would be better -
-  // documented in ARCHITECTURE.md as a known limitation.
   const allItems = await prisma.inventory.findMany({
     where: { tenantId: req.user.tenantId, quantity: { gt: 0 } },
     include: {

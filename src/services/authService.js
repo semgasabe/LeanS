@@ -1,3 +1,4 @@
+// src/services/authService.js
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/database');
@@ -30,10 +31,53 @@ function makeTokenPayload(user) {
   };
 }
 
-async function register(data, tenantId) {
+// Вспомогательная функция для определения tenant по email
+function getTenantNameFromEmail(email) {
+  const domain = email.split('@')[1];
+  if (domain === 'gmail.com') return 'Personal';
+  if (domain === 'apple.com') return 'Apple Kazakhstan';
+  if (domain === 'samsung.kz') return 'Samsung Kazakhstan';
+  if (domain === 'narxoz.kz') return 'Narxoz University';
+  return `Company_${domain}`;
+}
+
+async function register(data, tenantId, currentUser) {
   const validated = registerSchema.parse(data);
 
-  const existing = await prisma.user.findUnique({ where: { email: validated.email } });
+  let tenant = await prisma.tenant.findFirst({
+    where: { name: getTenantNameFromEmail(validated.email) }
+  });
+  
+  if (!tenant) {
+    // Создаем новый tenant для нового домена
+    tenant = await prisma.tenant.create({
+      data: {
+        name: getTenantNameFromEmail(validated.email),
+        createdAt: new Date()
+      }
+    });
+    console.log(`✅ New tenant created: ${tenant.name} (ID: ${tenant.id})`);
+  }
+
+  // Проверка на ADMIN (только первый ADMIN может создать другого ADMIN)
+  if (validated.role === 'ADMIN') {
+    const existingAdmin = await prisma.user.findFirst({
+      where: { role: 'ADMIN', tenantId: tenant.id }
+    });
+    
+    if (existingAdmin && (!currentUser || currentUser.role !== 'ADMIN')) {
+      const err = new Error('Only existing ADMIN can create new ADMIN users');
+      err.status = 403;
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+  }
+
+  // Проверка email
+  const existing = await prisma.user.findUnique({ 
+    where: { email: validated.email } 
+  });
+  
   if (existing) {
     const err = new Error('Email already registered');
     err.status = 409;
@@ -43,9 +87,8 @@ async function register(data, tenantId) {
 
   const hashed = await bcrypt.hash(validated.password, 12);
   
-  // Generate verification token
   const verificationToken = crypto.randomUUID();
-  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   const user = await prisma.user.create({
     data: {
@@ -53,21 +96,32 @@ async function register(data, tenantId) {
       password: hashed,
       name: validated.name,
       role: validated.role,
-      tenantId,
-      emailVerified: false,
+      tenantId: tenant.id,
+      emailVerified: true, // Временно для теста
       verificationToken,
       verificationExpires,
     },
   });
 
-  // Send verification email via queue
+  // Audit log
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'REGISTER',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { email: user.email, role: user.role, name: user.name }
+    }
+  });
+
+  // Отправка email в очередь
   await emailQueue.add('send-verification', {
-  type: 'send-verification',
-  email: user.email,           
-  token: verificationToken,
-  name: user.name,
-});
-console.log(`📧 Verification token for ${user.email}: ${verificationToken}`);
+    type: 'send-verification',
+    email: user.email,
+    token: verificationToken,
+    name: user.name,
+  });
 
   const payload = makeTokenPayload(user);
   const accessToken = signAccessToken(payload);
@@ -106,6 +160,17 @@ async function verifyEmail(token) {
     },
   });
 
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'VERIFY_EMAIL',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { emailVerified: true }
+    }
+  });
+
   return { message: 'Email verified successfully' };
 }
 
@@ -120,7 +185,6 @@ async function login(data) {
     throw err;
   }
 
-  // Check if email is verified
   if (!user.emailVerified) {
     const err = new Error('Please verify your email before logging in');
     err.status = 401;
@@ -145,6 +209,17 @@ async function login(data) {
     data: { token: refreshToken, userId: user.id, expiresAt: refreshExpiry },
   });
 
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'LOGIN',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { email: user.email, loginAt: new Date().toISOString() }
+    }
+  });
+
   const { password: _, tenantId: __, verificationToken: ___, verificationExpires: ____, ...safeUser } = user;
   return { user: safeUser, accessToken, refreshToken };
 }
@@ -153,23 +228,32 @@ async function forgotPassword(email) {
   const user = await prisma.user.findUnique({ where: { email } });
   
   if (!user) {
-    // Don't reveal that user doesn't exist for security reasons
     return { message: 'If an account with that email exists, a reset link has been sent' };
   }
 
   const resetToken = crypto.randomUUID();
-  const resetExpires = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
+  const resetExpires = new Date(Date.now() + 1 * 60 * 60 * 1000);
 
   await prisma.user.update({
     where: { id: user.id },
     data: { resetToken, resetExpires },
   });
 
-  // Send reset email via queue
   await emailQueue.add('send-password-reset', {
     email: user.email,
     token: resetToken,
     name: user.name,
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'FORGOT_PASSWORD',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { resetRequestedAt: new Date().toISOString() }
+    }
   });
 
   return { message: 'If an account with that email exists, a reset link has been sent' };
@@ -199,6 +283,17 @@ async function resetPassword(token, newPassword) {
       resetToken: null,
       resetExpires: null,
     },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'RESET_PASSWORD',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { passwordChangedAt: new Date().toISOString() }
+    }
   });
 
   return { message: 'Password reset successfully' };
@@ -234,15 +329,45 @@ async function refresh(refreshToken) {
   const newPayload = makeTokenPayload(user);
   const accessToken = signAccessToken(newPayload);
 
+  await prisma.auditLog.create({
+    data: {
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'REFRESH_TOKEN',
+      tableName: 'User',
+      recordId: user.id,
+      newValues: { refreshedAt: new Date().toISOString() }
+    }
+  });
+
   return { accessToken };
 }
 
 async function logout(refreshToken) {
   if (!refreshToken) return;
-  await prisma.refreshToken.updateMany({
-    where: { token: refreshToken },
-    data: { revoked: true },
-  });
+  
+  const stored = await prisma.refreshToken.findUnique({ where: { token: refreshToken } });
+  if (stored) {
+    const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+    
+    await prisma.refreshToken.updateMany({
+      where: { token: refreshToken },
+      data: { revoked: true },
+    });
+    
+    if (user) {
+      await prisma.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          action: 'LOGOUT',
+          tableName: 'User',
+          recordId: user.id,
+          newValues: { logoutAt: new Date().toISOString() }
+        }
+      });
+    }
+  }
 }
 
 module.exports = { 

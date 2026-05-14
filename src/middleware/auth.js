@@ -1,4 +1,4 @@
-
+// src/middleware/auth.js
 const { verifyAccessToken } = require('../utils/jwt');
 
 function auth(req, res, next) {
@@ -10,7 +10,7 @@ function auth(req, res, next) {
   const token = header.split(' ')[1];
   try {
     const payload = verifyAccessToken(token);
-    req.user = payload; 
+    req.user = payload;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
