@@ -1,5 +1,6 @@
 import axios from 'axios'
 
+// Production: /api/v1 (proxied by nginx to backend). Dev: vite proxy or .env override.
 const baseURL = import.meta.env.VITE_API_URL || '/api/v1'
 
 const api = axios.create({

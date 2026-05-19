@@ -2,7 +2,8 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-ARG VITE_API_URL=https://semgasabe-leanstock.kazi.rocks/api/v1
+# Same-origin API via nginx proxy — avoids CORS between frontend and API domains
+ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY package*.json ./

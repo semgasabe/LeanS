@@ -13,12 +13,21 @@
 
 Cloudflare работает, но **приложение на сервере не запустилось** или слушает другой порт.
 
-### Частая причина на DeployRocks
+### Регистрация / CORS
 
-В логах frontend-деплоя оба домена вешаются на один nginx — это нормально для платформы.
-Frontend теперь проксирует `/api/` и `/health` на `semgasabe-leanstock-api:3000`.
+Frontend должен вызывать **`/api/v1`** (тот же домен), не `https://semgasabe-leanstock.kazi.rocks/api/v1`.
 
-Если 502 остаётся — подождите 2–3 мин после деплоя (миграции Prisma) и обновите страницу **Ctrl+Shift+R**.
+Nginx на frontend проксирует `/api/` → `semgasabe-leanstock-api:3000`.
+
+В логах DeployRocks должны быть файлы **`Dockerfile`** и **`nginx.conf`** (не `nginx.conf.template`).
+
+Если `No Dockerfile found` — redeploy из GitHub после `git push`, не старый кэш.
+
+### CORS на API (запасной вариант)
+
+```
+CORS_ORIGINS=https://semgasabe-leanstock-frontend.kazi.rocks,https://semgasabe-leanstock.kazi.rocks
+```
 
 ### 1. Переменные окружения на DeployRocks (обязательно)
 

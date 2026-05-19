@@ -40,7 +40,7 @@ services:
     build:
       context: ./front/leanstock-frontend
       args:
-        VITE_API_URL: https://semgasabe-leanstock.kazi.rocks/api/v1
+        VITE_API_URL: /api/v1
     ports:
       - "80:80"
     depends_on:
