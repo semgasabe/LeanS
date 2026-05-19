@@ -16,6 +16,12 @@ function errorHandler(err, req, res, next) {
   if (err.code === 'P2025') {
     return res.status(404).json({ error: 'Record not found', code: 'NOT_FOUND' });
   }
+  if (err.code === 'P2003') {
+    return res.status(409).json({
+      error: 'Cannot delete: this record is referenced by other data (e.g. stock movements or audit logs). Remove related records first.',
+      code: 'FOREIGN_KEY_CONSTRAINT',
+    });
+  }
 
   // Zod validation errors
   if (err.name === 'ZodError') {

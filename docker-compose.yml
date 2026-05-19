@@ -26,6 +26,16 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  frontend:
+    build: ./front/leanstock-frontend
+    ports:
+      - "5174:5174"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api/v1
+    depends_on:
+      - api
+    restart: unless-stopped
+
   db:
     image: postgres:15-alpine
     environment:
