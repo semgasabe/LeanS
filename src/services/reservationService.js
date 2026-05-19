@@ -15,11 +15,19 @@ async function getTotalAvailable(productId, tenantId) {
 }
 
 async function getReservedQuantity(tenantId, productId) {
+  if (!redis) return 0;
   const raw = await redis.get(reservationKey(tenantId, productId));
   return parseInt(raw || '0', 10);
 }
 
 async function reserveStock({ productId, quantity, tenantId, ttlSeconds }) {
+  if (!redis) {
+    const err = new Error('Reservation service unavailable (Redis not configured)');
+    err.status = 503;
+    err.code = 'REDIS_UNAVAILABLE';
+    throw err;
+  }
+
   const product = await prisma.product.findFirst({
     where: { id: productId, tenantId },
   });
@@ -69,10 +77,14 @@ async function getReservationStatus(productId, tenantId) {
     throw err;
   }
 
-  const key = reservationKey(tenantId, productId);
   const reserved = await getReservedQuantity(tenantId, productId);
   const available = await getTotalAvailable(productId, tenantId);
-  const ttl = await redis.ttl(key);
+  let ttl = null;
+  if (redis) {
+    const key = reservationKey(tenantId, productId);
+    const ttlVal = await redis.ttl(key);
+    ttl = ttlVal > 0 ? ttlVal : null;
+  }
 
   return {
     productId,
@@ -81,8 +93,9 @@ async function getReservationStatus(productId, tenantId) {
     totalStock: available,
     reservedQuantity: reserved,
     availableQuantity: Math.max(0, available - reserved),
-    ttlSeconds: ttl > 0 ? ttl : null,
+    ttlSeconds: ttl,
     active: reserved > 0,
+    redisAvailable: Boolean(redis),
   };
 }
 

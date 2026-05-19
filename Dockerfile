@@ -26,10 +26,11 @@ COPY prisma ./prisma
 COPY openapi.yaml ./
 COPY entrypoint.sh ./
 
-RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint.sh && sed -i 's/\r$//' entrypoint.sh
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
+ENV PORT=3000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["sh", "./entrypoint.sh"]

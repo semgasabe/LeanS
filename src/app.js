@@ -30,6 +30,10 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'leanstock-api', timestamp: new Date().toISOString() });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -64,14 +68,15 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 if (require.main === module) {
-  require('./workers/decayWorker');
-  verifySmtpConnection().catch(console.error);
-  scheduleDecayJobs().catch(console.error);
-
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[LeanStock] Server running on port ${PORT} (${NODE_ENV})`);
-    console.log(`[LeanStock] API docs: http://localhost:${PORT}/api-docs`);
-    console.log('[LeanStock] Background workers: Email Queue, Dead Stock Decay');
+    console.log(`[LeanStock] Health: http://0.0.0.0:${PORT}/health`);
+
+    require('./workers/decayWorker');
+    verifySmtpConnection().catch(console.error);
+    scheduleDecayJobs().catch((err) => {
+      console.error('[LeanStock] Scheduler failed:', err.message);
+    });
   });
 }
 
