@@ -1,0 +1,8 @@
+* [33m687ee7b2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Fix backend Dockerfile with alpine
+* [33mbc272295[m Add frontend README
+* [33m54232f52[m Add frontend with Dockerfile, update docker-compose
+[31m|[m * [33mde13ddc5[m[33m ([m[1;31morigin/master[m[33m)[m Add files via upload
+[31m|[m[31m/[m  
+* [33mb80bd3e1[m Fix: proper .gitignore, remove node_modules and .env
+* [33m5fe029cc[m Remove .env from git
+* [33m16daf6a3[m Initial commit: LeanStock backend with auth, inventory transfer, background workers

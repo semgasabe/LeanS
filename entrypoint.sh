@@ -1,11 +1,11 @@
-@'
 #!/bin/sh
-# Ждем пока база данных будет готова
+set -e
+
+echo "Waiting for database to be ready..."
 sleep 5
 
-# Выполняем миграции
+echo "Running Prisma migrations..."
 npx prisma migrate deploy
 
-# Запускаем приложение
+echo "Starting the application..."
 npm start
-'@ | Out-File -FilePath entrypoint.sh -Encoding UTF8
