@@ -1,8 +1,24 @@
 # DeployRocks / kazi.rocks — чеклист
 
+## Два приложения — два URL
+
+| URL | Dokku app | Назначение |
+|-----|-----------|------------|
+| https://semgasabe-leanstock.kazi.rocks | `semgasabe-leanstock-api` | Backend API |
+| https://semgasabe-leanstock-frontend.kazi.rocks | `semgasabe-leanstock-frontend` | React UI |
+
+Проверка API: `/health` на **API-домене**, не на frontend.
+
 ## 502 Bad Gateway = контейнер не отвечает
 
 Cloudflare работает, но **приложение на сервере не запустилось** или слушает другой порт.
+
+### Частая причина на DeployRocks
+
+В логах frontend-деплоя оба домена вешаются на один nginx — это нормально для платформы.
+Frontend теперь проксирует `/api/` и `/health` на `semgasabe-leanstock-api:3000`.
+
+Если 502 остаётся — подождите 2–3 мин после деплоя (миграции Prisma) и обновите страницу **Ctrl+Shift+R**.
 
 ### 1. Переменные окружения на DeployRocks (обязательно)
 

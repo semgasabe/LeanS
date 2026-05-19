@@ -27,9 +27,31 @@ if (JWT_SECRET.length < 32) {
 const PORT = parseInt(process.env.PORT || process.env.BACKEND_PORT || '3000', 10);
 const NODE_ENV = process.env.NODE_ENV || 'production';
 const TENANT_ID = parseInt(process.env.TENANT_ID || '1', 10);
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+const PRODUCTION_CORS_DEFAULTS = [
+  'https://semgasabe-leanstock-frontend.kazi.rocks',
+  'https://semgasabe-leanstock.kazi.rocks',
+];
+
+function buildCorsOrigins() {
+  if (process.env.CORS_ORIGINS) {
+    return process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+  }
+  const origins = new Set([
+    FRONTEND_URL,
+    ...(NODE_ENV === 'production' ? PRODUCTION_CORS_DEFAULTS : []),
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ]);
+  return [...origins];
+}
+
+const CORS_ORIGINS = buildCorsOrigins();
 
 console.log(`[Startup] PORT=${PORT} NODE_ENV=${NODE_ENV} TENANT_ID=${TENANT_ID}`);
 console.log(`[Startup] DATABASE_URL set=${Boolean(process.env.DATABASE_URL)} REDIS_URL set=${Boolean(process.env.REDIS_URL)}`);
+console.log(`[Startup] CORS_ORIGINS=${CORS_ORIGINS.join(', ')}`);
 
 module.exports = {
   PORT,
@@ -45,14 +67,12 @@ module.exports = {
   DECAY_THRESHOLD_DAYS: parseInt(process.env.DECAY_THRESHOLD_DAYS, 10) || 30,
   DECAY_PERCENT: parseInt(process.env.DECAY_PERCENT, 10) || 10,
   DECAY_MAX_PERCENT: parseInt(process.env.DECAY_MAX_PERCENT, 10) || 50,
-  CORS_ORIGINS: process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:3000', 'http://localhost:5173'],
+  CORS_ORIGINS,
   EMAIL_HOST: process.env.EMAIL_HOST || 'smtp.gmail.com',
   EMAIL_PORT: parseInt(process.env.EMAIL_PORT || '587', 10),
   EMAIL_USER: process.env.EMAIL_USER || '',
   EMAIL_PASS: process.env.EMAIL_PASS || process.env.EMAIL_API_KEY || '',
   EMAIL_FROM: process.env.EMAIL_FROM_ADDRESS || process.env.EMAIL_FROM || 'noreply@leanstock.com',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+  FRONTEND_URL,
   RESERVATION_TTL_SECONDS: parseInt(process.env.RESERVATION_TTL_SECONDS, 10) || 600,
 };

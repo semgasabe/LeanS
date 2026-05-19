@@ -1,17 +1,14 @@
 #!/bin/sh
 set -e
 
-echo "=== LeanStock entrypoint ==="
+echo "=== LeanStock API entrypoint ==="
 echo "PORT=${PORT:-3000}"
 
-echo "Waiting for database (15s)..."
-sleep 15
-
-echo "Generating Prisma client..."
-npx prisma generate
+echo "Waiting for database (8s)..."
+sleep 8
 
 echo "Running migrations..."
-max_attempts=30
+max_attempts=20
 attempt=0
 until npx prisma migrate deploy; do
   attempt=$((attempt + 1))
@@ -23,8 +20,8 @@ until npx prisma migrate deploy; do
     }
     break
   fi
-  echo "DB not ready (${attempt}/${max_attempts}), retry in 3s..."
-  sleep 3
+  echo "DB not ready (${attempt}/${max_attempts}), retry in 2s..."
+  sleep 2
 done
 
 echo "Starting Node on port ${PORT:-3000}..."

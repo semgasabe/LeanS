@@ -22,10 +22,25 @@ const jobController = require('./controllers/jobController');
 
 const app = express();
 
-app.use(cors({
-  origin: NODE_ENV === 'production' ? CORS_ORIGINS : true,
+const corsOptions = {
+  origin(origin, callback) {
+    if (NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    if (!origin || CORS_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Blocked origin: ${origin}`);
+    return callback(null, false);
+  },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(cookieParser());
