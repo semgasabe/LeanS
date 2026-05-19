@@ -4,12 +4,11 @@
       {
         "type": "startup",
         "name": "api-health",
-        "description": "Wait for Prisma migrations and Node server",
         "path": "/health",
-        "attempts": 20,
-        "wait": 10,
-        "timeout": 8,
-        "uptime": 180
+        "attempts": 30,
+        "wait": 15,
+        "timeout": 10,
+        "uptime": 10
       }
     ]
   }
