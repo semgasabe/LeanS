@@ -1,20 +1,10 @@
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT),
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const { transporter, EMAIL_FROM } = require('../config/email');
 
 async function sendVerificationEmail(email, token, name) {
   const verifyUrl = `${process.env.FRONTEND_URL}/verify?token=${token}`;
   
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: EMAIL_FROM,
     to: email,
     subject: 'Verify Your Email - LeanStock',
     html: `
@@ -30,7 +20,7 @@ async function sendPasswordResetEmail(email, token, name) {
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
   
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: EMAIL_FROM,
     to: email,
     subject: 'Reset Your Password - LeanStock',
     html: `
@@ -45,7 +35,7 @@ async function sendPasswordResetEmail(email, token, name) {
 
 async function sendTransferNotification(email, productName, quantity, fromLocation, toLocation) {
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: EMAIL_FROM,
     to: email,
     subject: 'Stock Transfer Notification - LeanStock',
     html: `

@@ -1,36 +1,51 @@
 services:
   api:
     build: .
-    entrypoint: ["/bin/sh", "./entrypoint.sh"]
     ports:
       - "5000:3000"
     environment:
       DATABASE_URL: postgresql://leanstock:leanstock@db:5432/leanstock
-      JWT_SECRET: super-secret-jwt-key-change-in-production-must-be-32chars
-      JWT_REFRESH_SECRET: super-secret-refresh-key-change-in-production-32chars
+      JWT_SECRET_KEY: super-secret-jwt-key-change-in-production-must-be-32chars
+      JWT_REFRESH_SECRET_KEY: super-secret-refresh-key-change-in-production-32chars
       PORT: 3000
+      BACKEND_PORT: 3000
       NODE_ENV: production
+      ENVIRONMENT: production
       TENANT_ID: 1
       REDIS_URL: redis://redis:6379
       CORS_ORIGINS: https://semgasabe-leanstock-frontend.kazi.rocks,https://semgasabe-leanstock.kazi.rocks
+      FRONTEND_URL: https://semgasabe-leanstock-frontend.kazi.rocks
       DECAY_THRESHOLD_DAYS: 30
       DECAY_PERCENT: 10
       DECAY_MAX_PERCENT: 50
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@leanstock.com}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
 
   frontend:
-    build: ./front/leanstock-frontend
+    build:
+      context: ./front/leanstock-frontend
+      args:
+        VITE_API_URL: https://semgasabe-leanstock.kazi.rocks/api/v1
     ports:
       - "80:80"
-    environment:
-      - VITE_API_URL=https://semgasabe-leanstock.kazi.rocks/api/v1
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   db:
@@ -50,6 +65,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:

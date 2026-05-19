@@ -2,7 +2,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Установить OpenSSL
 RUN apk add --no-cache openssl
 
 COPY package*.json ./
@@ -15,9 +14,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Установить OpenSSL
-RUN apk add --no-cache openssl ca-certificates
+RUN apk add --no-cache openssl ca-certificates wget
 
+COPY package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
@@ -25,9 +24,12 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY src ./src
 COPY prisma ./prisma
 COPY openapi.yaml ./
+COPY entrypoint.sh ./
+
+RUN chmod +x entrypoint.sh
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+ENTRYPOINT ["./entrypoint.sh"]

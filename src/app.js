@@ -1,6 +1,5 @@
-// src/app.js
-// Entry point. Sets up all middleware, routes, Swagger UI, and cron jobs.
-require('./config/env'); // validate env vars first - crashes if anything missing
+// Entry point. Sets up middleware, routes, Swagger UI, and background workers.
+require('./config/env');
 
 const express = require('express');
 const cors = require('cors');
@@ -11,37 +10,32 @@ const path = require('path');
 const YAML = require('yaml');
 
 const { PORT, CORS_ORIGINS, NODE_ENV } = require('./config/env');
+const { verifySmtpConnection } = require('./config/email');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 const { auth, requireRole } = require('./middleware/auth');
 
-// Workers and queues
-const { emailQueue, emailWorker } = require('./jobs/emailQueue');
-const { decayWorker } = require('./workers/decayWorker');
+require('./jobs/emailQueue');
 const { scheduleDecayJobs } = require('./workers/scheduler');
 
 const jobController = require('./controllers/jobController');
 
 const app = express();
 
-app.use('/api/v1/tenants', require('./routes/tenant.routes'));
-// ── CORS ───────────────────────────────────────────────────────────────────
-// No wildcard origins in production - configured from env
 app.use(cors({
   origin: NODE_ENV === 'production' ? CORS_ORIGINS : true,
-  credentials: true, // needed for cookies (refresh token)
+  credentials: true,
 }));
 
-// ── Body parsing ───────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cookieParser());
 
-// ── Rate limiting on all API routes ───────────────────────────────────────
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.use('/api/', apiLimiter);
 
-// ── Swagger UI ────────────────────────────────────────────────────────────
-// Serves the API docs at /api-docs
-// Reads the openapi.yaml file that was submitted with the blueprint
 const openapiPath = path.join(__dirname, '..', 'openapi.yaml');
 if (fs.existsSync(openapiPath)) {
   const openapiDoc = YAML.parse(fs.readFileSync(openapiPath, 'utf8'));
@@ -50,39 +44,35 @@ if (fs.existsSync(openapiPath)) {
   }));
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────
-app.use('/api/v1/auth',      require('./routes/auth.routes'));
-app.use('/api/v1/products',  require('./routes/product.routes'));
+app.use('/api/v1/tenants', require('./routes/tenant.routes'));
+app.use('/api/v1/auth', require('./routes/auth.routes'));
+app.use('/api/v1/products', require('./routes/product.routes'));
 app.use('/api/v1/inventory', require('./routes/inventory.routes'));
-app.use('/api/v1/orders',    require('./routes/order.routes'));
+app.use('/api/v1/orders', require('./routes/order.routes'));
 app.use('/api/v1/locations', require('./routes/location.routes'));
-app.use('/api/v1/users',     require('./routes/user.routes'));
+app.use('/api/v1/users', require('./routes/user.routes'));
+app.use('/api/v1/forecast', require('./routes/forecast.routes'));
+app.use('/api/v1', require('./routes/reservation.routes'));
 
-// ── Health check ──────────────────────────────────────────────────────────
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ── 404 for unknown routes ────────────────────────────────────────────────
 app.post('/api/v1/jobs/decay/trigger', auth, requireRole('ADMIN'), jobController.triggerDecay);
 app.get('/api/v1/jobs/queue/status', auth, requireRole('ADMIN'), jobController.getQueueStatusController);
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
 });
 
-// ── Global error handler (must be last) ───────────────────────────────────
 app.use(errorHandler);
 
-// ── Start server and background workers ───────────────────────────────────
 if (require.main === module) {
-  // Запуск планировщика decay jobs
+  require('./workers/decayWorker');
+  verifySmtpConnection().catch(console.error);
   scheduleDecayJobs().catch(console.error);
-  
-  app.listen(PORT, () => {
+
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`[LeanStock] Server running on port ${PORT} (${NODE_ENV})`);
     console.log(`[LeanStock] API docs: http://localhost:${PORT}/api-docs`);
-    console.log(`[LeanStock] Background workers: Email Queue, Dead Stock Decay`);
+    console.log('[LeanStock] Background workers: Email Queue, Dead Stock Decay');
   });
 }
 
-module.exports = app; // export for tests
+module.exports = app;

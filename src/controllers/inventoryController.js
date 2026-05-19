@@ -4,6 +4,7 @@ const prisma = require('../config/database');
 const asyncHandler = require('../utils/asyncHandler');
 const { parsePaginationParams, buildCursorQuery, buildPaginationResult } = require('../utils/pagination');
 const inventoryService = require('../services/inventoryService');
+const { queueLowStockAlert } = require('../services/emailNotifier');
 
 const listInventory = asyncHandler(async (req, res) => {
   const { limit, cursor } = parsePaginationParams(req.query);
@@ -72,6 +73,10 @@ const createInventory = asyncHandler(async (req, res) => {
       location: { select: { id: true, name: true } },
     },
   });
+
+  if (item.quantity <= item.minQuantity) {
+    await queueLowStockAlert(item);
+  }
 
   res.status(201).json(item);
 });

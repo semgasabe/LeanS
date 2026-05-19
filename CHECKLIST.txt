@@ -1,0 +1,59 @@
+LeanStock — Deployment & Feature Checklist
+==========================================
+
+Deployment
+[ ] docker-compose.yml: API 5000:3000, frontend 80:80
+[ ] Dockerfile ENTRYPOINT uses entrypoint.sh (DB wait 10+ seconds)
+[ ] API healthcheck on /health
+[ ] DEPLOYED_URL.txt points to production URL
+[ ] VIDEO_LINK.txt contains demo video URL
+
+Backend Core
+[ ] PostgreSQL + Prisma migrations deploy on startup
+[ ] Redis for BullMQ, locks, and reservations
+[ ] JWT auth (access + refresh) with RBAC
+[ ] Multi-tenant row-level isolation (tenantId)
+[ ] Cursor-based pagination on list endpoints
+[ ] Swagger UI at /api-docs
+
+Inventory
+[ ] Atomic stock transfer (Redis lock + Prisma transaction)
+[ ] Stock movements: IN, SALE, ADJUSTMENT, DAMAGE
+[ ] Low stock alerts endpoint
+[ ] Low stock email to managers (BullMQ)
+
+Orders
+[ ] Purchase order state machine (PENDING → APPROVED → RECEIVED)
+[ ] Purchase order confirmation email (BullMQ)
+
+Email (BullMQ)
+[ ] Email verification on register
+[ ] Password reset email
+[ ] Low stock alert email
+[ ] Inventory transfer receipt email
+[ ] Purchase order confirmation email
+[ ] SMTP connection verified on API startup
+[ ] EMAIL_USER / EMAIL_PASS in .env.example
+
+Forecasting
+[ ] GET /api/v1/forecast?productId=&days=30
+[ ] Moving average of sales
+[ ] Recommended order quantity (average * 1.2)
+
+Reservations (Redis)
+[ ] POST /api/v1/reserve (TTL default 10 min)
+[ ] GET /api/v1/reservation/status/:productId
+[ ] Uses redis INCRBY + EXPIRE
+
+Frontend
+[ ] React + Vite SPA
+[ ] VITE_API_URL from environment
+[ ] frontend/.env.example present
+
+Background Jobs
+[ ] Dead stock decay worker (node-cron / BullMQ)
+[ ] Email queue worker
+
+Tests & CI
+[ ] npm test passes
+[ ] GitHub Actions CI workflow

@@ -1,24 +1,21 @@
-FROM node:20-alpine as build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Копируем package.json и устанавливаем зависимости
-COPY package*.json ./
-RUN npm install
+ARG VITE_API_URL=https://semgasabe-leanstock.kazi.rocks/api/v1
+ENV VITE_API_URL=$VITE_API_URL
 
-# Копируем исходники и собираем
+COPY package*.json ./
+RUN npm ci
+
 COPY . .
 RUN npm run build
 
-# Второй этап: сервер для статики
 FROM nginx:alpine
 
-# Копируем собранные файлы
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Копируем конфиг nginx (опционально)
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 5174
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

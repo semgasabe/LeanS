@@ -240,6 +240,7 @@ async function forgotPassword(email) {
   });
 
   await emailQueue.add('send-password-reset', {
+    type: 'send-password-reset',
     email: user.email,
     token: resetToken,
     name: user.name,

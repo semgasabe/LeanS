@@ -4,6 +4,7 @@ const prisma = require('../config/database');
 const asyncHandler = require('../utils/asyncHandler');
 const { parsePaginationParams, buildCursorQuery, buildPaginationResult } = require('../utils/pagination');
 const auditService = require('../services/auditService');
+const { queuePurchaseOrderConfirmation } = require('../services/emailNotifier');
 
 const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -80,6 +81,18 @@ const createOrder = asyncHandler(async (req, res) => {
     action: 'CREATE_ORDER', tableName: 'PurchaseOrder', recordId: order.id,
     newValues: { supplier: data.supplier, itemCount: data.items.length },
   });
+
+  const creator = await prisma.user.findUnique({
+    where: { id: req.user.userId },
+    select: { email: true, name: true },
+  });
+  if (creator?.email) {
+    await queuePurchaseOrderConfirmation({
+      order,
+      recipientEmail: creator.email,
+      recipientName: creator.name,
+    });
+  }
 
   res.status(201).json(order);
 });

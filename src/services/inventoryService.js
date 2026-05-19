@@ -3,6 +3,19 @@ const { z } = require('zod');
 const prisma = require('../config/database');
 const { withLock } = require('../utils/redisLock');
 const auditService = require('./auditService');
+const { queueLowStockAlert, queueTransferReceipt } = require('./emailNotifier');
+
+async function maybeNotifyLowStock(inventoryId, tenantId) {
+  const inv = await prisma.inventory.findFirst({
+    where: { id: inventoryId, tenantId },
+    include: {
+      product: { select: { name: true, sku: true } },
+      location: { select: { name: true } },
+    },
+  });
+  if (!inv || inv.quantity > inv.minQuantity) return;
+  await queueLowStockAlert(inv);
+}
 
 const movementSchema = z.object({
   type: z.enum(['IN', 'SALE', 'ADJUSTMENT', 'DAMAGE']),
@@ -75,6 +88,8 @@ async function recordMovement(inventoryId, data, user) {
         oldValues: { quantity: inv.quantity },
         newValues: { quantity: updated.quantity },
       });
+
+      await maybeNotifyLowStock(inventoryId, user.tenantId);
 
       return { movement, newQuantity: updated.quantity };
     });
@@ -204,6 +219,39 @@ async function transferStock(data, user) {
           amount: validated.quantity,
         },
       });
+
+      await maybeNotifyLowStock(fromInv.id, user.tenantId);
+      await maybeNotifyLowStock(toInv.id, user.tenantId);
+
+      const [actor, product, fromLocation, toLocation] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { email: true, name: true },
+        }),
+        prisma.product.findFirst({
+          where: { id: validated.productId, tenantId: user.tenantId },
+          select: { name: true },
+        }),
+        prisma.location.findFirst({
+          where: { id: validated.fromLocationId, tenantId: user.tenantId },
+          select: { name: true },
+        }),
+        prisma.location.findFirst({
+          where: { id: validated.toLocationId, tenantId: user.tenantId },
+          select: { name: true },
+        }),
+      ]);
+
+      if (actor?.email && product) {
+        await queueTransferReceipt({
+          email: actor.email,
+          name: actor.name,
+          productName: product.name,
+          quantity: validated.quantity,
+          fromLocation: fromLocation?.name || validated.fromLocationId,
+          toLocation: toLocation?.name || validated.toLocationId,
+        });
+      }
 
       return {
         message: 'Transfer completed successfully',
