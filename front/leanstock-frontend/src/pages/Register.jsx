@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext'
 export default function Register() {
   const navigate = useNavigate()
   const toast    = useToast()
-  const [form, setForm]   = useState({ name: '', email: '', password: '', tenantId: '' })
+  const [form, setForm]   = useState({ name: '', email: '', password: '', role: 'STAFF' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -16,7 +16,7 @@ export default function Register() {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
-      await api.post('/auth/register', { ...form, tenantId: Number(form.tenantId) })
+      await api.post('/auth/register', form)
       setDone(true)
       toast('Account created! Check your email to verify.', 'success')
     } catch (err) {
@@ -59,8 +59,13 @@ export default function Register() {
               <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="you@company.com" /></div>
             <div className="form-group"><label>Password</label>
               <input type="password" required minLength={8} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="At least 8 characters" /></div>
-            <div className="form-group"><label>Company ID (Tenant)</label>
-              <input type="number" required value={form.tenantId} onChange={e => setForm(f => ({ ...f, tenantId: e.target.value }))} placeholder="1" /></div>
+            <div className="form-group"><label>Role</label>
+              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+                <option value="STAFF">Staff</option>
+                <option value="MANAGER">Manager</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
             <button className="btn btn-primary w-full" type="submit" disabled={loading} style={{ marginTop: 4, padding: 10 }}>
               {loading ? <span className="spinner" style={{ width: 16, height: 16 }} /> : 'Register'}
             </button>
