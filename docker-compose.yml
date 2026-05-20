@@ -18,22 +18,16 @@ services:
       DECAY_THRESHOLD_DAYS: 30
       DECAY_PERCENT: 10
       DECAY_MAX_PERCENT: 50
-      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
-      EMAIL_PORT: ${EMAIL_PORT:-587}
-      EMAIL_USER: ${EMAIL_USER:-}
-      EMAIL_PASS: ${EMAIL_PASS:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@leanstock.com}
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_USER: sabina.serzhan@narxoz.kz
+      EMAIL_PASS: enfbxwnrlpllcabw
+      EMAIL_FROM: noreply@leanstock.com
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
     restart: unless-stopped
 
   frontend:
@@ -44,8 +38,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     restart: unless-stopped
 
   db:
