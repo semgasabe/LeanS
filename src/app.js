@@ -75,6 +75,18 @@ app.use('/api/v1/orders', require('./routes/order.routes'));
 app.use('/api/v1/locations', require('./routes/location.routes'));
 app.use('/api/v1/users', require('./routes/user.routes'));
 app.use('/api/v1/forecast', require('./routes/forecast.routes'));
+
+// Root of API version (no trailing path) — smoke test / tooling; must be before app.use('/api/v1', …).
+app.get('/api/v1', (req, res) => {
+  res.json({
+    service: 'leanstock-api',
+    status: 'ok',
+    gitRev: process.env.GIT_REV || 'unknown',
+    health: '/health',
+    docs: '/api-docs',
+  });
+});
+
 app.use('/api/v1', require('./routes/reservation.routes'));
 
 app.post('/api/v1/jobs/decay/trigger', auth, requireRole('ADMIN'), jobController.triggerDecay);
