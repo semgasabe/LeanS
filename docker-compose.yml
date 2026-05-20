@@ -22,7 +22,7 @@ services:
       EMAIL_PORT: ${EMAIL_PORT:-587}
       EMAIL_USER: ${EMAIL_USER:-}
       EMAIL_PASS: ${EMAIL_PASS:-}
-      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@leanstock.com}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@leanstock.com}
     depends_on:
       db:
         condition: service_healthy
