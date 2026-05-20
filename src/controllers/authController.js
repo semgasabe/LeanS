@@ -2,6 +2,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const authService = require('../services/authService');
 const { TENANT_ID } = require('../config/env');
+const prisma = require('../config/database');
 
 const register = asyncHandler(async (req, res) => {
   const { user, accessToken, refreshToken } = await authService.register(req.body, TENANT_ID);
@@ -48,7 +49,27 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
-  res.json({ user: req.user });
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      locationId: true,
+      tenantId: true,
+      emailVerified: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!user) {
+    res.clearCookie('refreshToken');
+    return res.status(401).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
+  }
+
+  res.json({ user });
 });
 
 // NEW: Email verification

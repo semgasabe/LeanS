@@ -31,32 +31,43 @@ function makeTokenPayload(user) {
   };
 }
 
-// Вспомогательная функция для определения tenant по email
+// Fallback when tenantId is not explicitly provided.
 function getTenantNameFromEmail(email) {
   const domain = email.split('@')[1];
-  if (domain === 'gmail.com') return 'Personal';
-  if (domain === 'apple.com') return 'Apple Kazakhstan';
-  if (domain === 'samsung.kz') return 'Samsung Kazakhstan';
-  if (domain === 'narxoz.kz') return 'Narxoz University';
   return `Company_${domain}`;
 }
 
 async function register(data, tenantId, currentUser) {
   const validated = registerSchema.parse(data);
 
-  let tenant = await prisma.tenant.findFirst({
-    where: { name: getTenantNameFromEmail(validated.email) }
-  });
-  
-  if (!tenant) {
-    // Создаем новый tenant для нового домена
-    tenant = await prisma.tenant.create({
-      data: {
-        name: getTenantNameFromEmail(validated.email),
-        createdAt: new Date()
-      }
+  let tenant = null;
+
+  // In production DeployRocks setup we run single-tenant app per deployment.
+  // Respect tenantId from env/controller to avoid unexpected "domain-based" tenant switching.
+  if (Number.isInteger(tenantId) && tenantId > 0) {
+    tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      tenant = await prisma.tenant.create({
+        data: {
+          name: `Tenant_${tenantId}`,
+          createdAt: new Date(),
+        },
+      });
+      console.log(`✅ New tenant created from TENANT_ID: ${tenant.name} (ID: ${tenant.id})`);
+    }
+  } else {
+    tenant = await prisma.tenant.findFirst({
+      where: { name: getTenantNameFromEmail(validated.email) },
     });
-    console.log(`✅ New tenant created: ${tenant.name} (ID: ${tenant.id})`);
+    if (!tenant) {
+      tenant = await prisma.tenant.create({
+        data: {
+          name: getTenantNameFromEmail(validated.email),
+          createdAt: new Date(),
+        },
+      });
+      console.log(`✅ New tenant created: ${tenant.name} (ID: ${tenant.id})`);
+    }
   }
 
   // Проверка на ADMIN (только первый ADMIN может создать другого ADMIN)
