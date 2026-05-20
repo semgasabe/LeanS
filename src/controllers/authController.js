@@ -4,15 +4,22 @@ const authService = require('../services/authService');
 const { TENANT_ID } = require('../config/env');
 const prisma = require('../config/database');
 
+function refreshCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    // Frontend and API are on different subdomains in DeployRocks.
+    // SameSite=None is required so browser sends refresh cookie cross-site.
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
 const register = asyncHandler(async (req, res) => {
   const { user, accessToken, refreshToken } = await authService.register(req.body, TENANT_ID);
 
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
   res.status(201).json({ user, accessToken });
 });
@@ -20,12 +27,7 @@ const register = asyncHandler(async (req, res) => {
 const login = asyncHandler(async (req, res) => {
   const { user, accessToken, refreshToken } = await authService.login(req.body);
 
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
   res.json({ user, accessToken });
 });
@@ -44,7 +46,7 @@ const logout = asyncHandler(async (req, res) => {
   const token = req.cookies?.refreshToken || req.body?.refreshToken;
   await authService.logout(token);
 
-  res.clearCookie('refreshToken');
+  res.clearCookie('refreshToken', refreshCookieOptions());
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -65,7 +67,7 @@ const me = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', refreshCookieOptions());
     return res.status(401).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
   }
 

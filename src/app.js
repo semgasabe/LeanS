@@ -50,7 +50,11 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    gitRev: process.env.GIT_REV || 'unknown',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.use('/api/', apiLimiter);
