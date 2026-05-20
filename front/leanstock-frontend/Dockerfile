@@ -2,8 +2,9 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Same-origin API via nginx proxy — avoids CORS between frontend and API domains
-ARG VITE_API_URL=/api/v1
+# DeployRocks: frontend and API are different domains.
+# Use API domain in the built bundle; CORS must allow the frontend origin.
+ARG VITE_API_URL=https://semgasabe-leanstock.kazi.rocks/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY package*.json ./
