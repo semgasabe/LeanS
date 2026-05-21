@@ -6,6 +6,12 @@ const rateLimit = require('express-rate-limit');
 
 const skipPreflight = (req) => req.method === 'OPTIONS';
 
+// Dokku/nginx sends X-Forwarded-For; disable strict validation (use app.set('trust proxy', 1) in app.js).
+const dokkuValidate = {
+  xForwardedForHeader: false,
+  trustProxy: false,
+};
+
 const authLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 5,
@@ -13,6 +19,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: skipPreflight,
+  validate: dokkuValidate,
 });
 
 const apiLimiter = rateLimit({
@@ -22,6 +29,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: skipPreflight,
+  validate: dokkuValidate,
 });
 
 module.exports = { authLimiter, apiLimiter };
