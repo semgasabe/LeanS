@@ -9,8 +9,7 @@
         "scheme": "http",
         "attempts": 30,
         "wait": 15,
-        "timeout": 10,
-        "uptime": 10
+        "timeout": 10
       }
     ]
   }

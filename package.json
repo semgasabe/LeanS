@@ -2,6 +2,9 @@
   "name": "leanstock-api",
   "version": "1.0.0",
   "description": "LeanStock Inventory Management API",
+  "engines": {
+    "node": ">=20"
+  },
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
