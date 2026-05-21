@@ -4,6 +4,17 @@
 
 function errorHandler(err, req, res, next) {
   console.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
+  if (process.env.NODE_ENV !== 'production' && err.stack) {
+    console.error(err.stack);
+  }
+
+  // express-rate-limit behind proxy without trust proxy
+  if (err.code === 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR' || err.code === 'ERR_ERL_PERMISSIVE_TRUST_PROXY') {
+    return res.status(500).json({
+      error: 'Server proxy configuration error. Set trust proxy on the API.',
+      code: 'PROXY_CONFIG',
+    });
+  }
 
   // Prisma known errors
   if (err.code === 'P2002') {

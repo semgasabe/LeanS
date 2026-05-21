@@ -30,8 +30,9 @@ const TENANT_ID = parseInt(process.env.TENANT_ID || '1', 10);
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const PRODUCTION_CORS_DEFAULTS = [
-  'https://semgasabe-leanstock-frontend.kazi.rocks',
-  'https://semgasabe-leanstock.kazi.rocks',
+  'https://semgasabe-leans.kazi.rocks',
+  'https://semgasabe-leans-frontend.kazi.rocks',
+  'https://semgasabe-leans-api.kazi.rocks',
 ];
 
 const DEV_CORS_ORIGINS = [

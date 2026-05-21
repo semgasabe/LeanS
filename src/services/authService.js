@@ -132,12 +132,16 @@ async function register(data, tenantId, currentUser) {
     },
   });
 
-  await emailQueue.add('send-verification', {
-    type: 'send-verification',
-    email: user.email,
-    token: verificationToken,
-    name: user.name,
-  });
+  try {
+    await emailQueue.add('send-verification', {
+      type: 'send-verification',
+      email: user.email,
+      token: verificationToken,
+      name: user.name,
+    });
+  } catch (e) {
+    console.error('[Auth] Verification email queue failed:', e.message);
+  }
 
   const { password: _, tenantId: __, verificationToken: ___, verificationExpires: ____, ...safeUser } = user;
   return {
@@ -267,12 +271,16 @@ async function forgotPassword(email) {
     data: { resetToken, resetExpires },
   });
 
-  await emailQueue.add('send-password-reset', {
-    type: 'send-password-reset',
-    email: user.email,
-    token: resetToken,
-    name: user.name,
-  });
+  try {
+    await emailQueue.add('send-password-reset', {
+      type: 'send-password-reset',
+      email: user.email,
+      token: resetToken,
+      name: user.name,
+    });
+  } catch (e) {
+    console.error('[Auth] Password reset email queue failed:', e.message);
+  }
 
   await prisma.auditLog.create({
     data: {

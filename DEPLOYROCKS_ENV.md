@@ -23,7 +23,7 @@
 | `JWT_REFRESH_SECRET_KEY` | ≥ 32 символов |
 | `TENANT_ID` | `1` |
 | `FRONTEND_URL` | `https://semgasabe-leans.kazi.rocks` |
-| `CORS_ORIGINS` | `https://semgasabe-leans.kazi.rocks,https://semgasabe-leans-api.kazi.rocks` |
+| `CORS_ORIGINS` | `https://semgasabe-leans.kazi.rocks,https://semgasabe-leans-api.kazi.rocks` (обязательно после redeploy API с `trust proxy`) |
 | `EMAIL_HOST` | `smtp.gmail.com` |
 | `EMAIL_PORT` | `587` |
 | `EMAIL_USER` | ваш Gmail |

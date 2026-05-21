@@ -22,6 +22,9 @@ const jobController = require('./controllers/jobController');
 
 const app = express();
 
+// Behind Dokku / nginx: required for express-rate-limit (X-Forwarded-For) and secure cookies.
+app.set('trust proxy', 1);
+
 function isOriginAllowed(origin) {
   if (!origin) return true;
   if (NODE_ENV !== 'production') return true;
