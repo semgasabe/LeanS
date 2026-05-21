@@ -1,0 +1,17 @@
+{
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "nginx-root",
+        "path": "/",
+        "port": 80,
+        "scheme": "http",
+        "attempts": 15,
+        "wait": 5,
+        "timeout": 5,
+        "uptime": 5
+      }
+    ]
+  }
+}

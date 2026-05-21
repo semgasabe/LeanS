@@ -5,6 +5,8 @@
         "type": "startup",
         "name": "api-health",
         "path": "/health",
+        "port": 3000,
+        "scheme": "http",
         "attempts": 30,
         "wait": 15,
         "timeout": 10,
