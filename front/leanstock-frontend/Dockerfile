@@ -4,8 +4,8 @@ WORKDIR /app
 
 # DeployRocks: frontend and API are different domains.
 # Use API domain in the built bundle; CORS must allow the frontend origin.
-# DeployRocks: set in dashboard build-arg or use defaults below
-ARG VITE_API_URL=https://semgasabe-leans-api.kazi.rocks/api/v1
+# Same-origin API via nginx proxy (DeployRocks rewrites upstream "api" → semgasabe-leans-api.web)
+ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY package*.json ./

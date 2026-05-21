@@ -1,116 +1,129 @@
-# DeployRocks (Dokku) — LeanS / LeanStock
+# DeployRocks — исправление деплоя LeanS
 
-## Ваши приложения (из лога)
-
-| Сервис | Dokku app | Container port |
-|--------|-----------|----------------|
-| API | `semgasabe-leans-api` | **3000** |
-| Frontend | `semgasabe-leans-frontend` | **80** (nginx) |
-| PostgreSQL | `semgasabe-leans-db` | — |
-| Redis | `semgasabe-leans-redis` | — |
-| Docker network | `semgasabe-leans-net` | все приложения в одной сети |
-
-Типичные URL (проверьте в панели DeployRocks):
-
-- Frontend: `https://semgasabe-leans-frontend.kazi.rocks`
-- API: `https://semgasabe-leans-api.kazi.rocks`
-
----
-
-## Почему падает деплой (ваш лог)
-
-### 1. `Network semgasabe-leans-net does not exist`
-
-Сеть должна быть создана **до** запуска API и frontend. БД (`leans-db`, `leans-redis`) у вас поднялись, сеть — нет → контейнеры web не стартуют.
-
-**Что сделать в панели DeployRocks:**
-
-1. Удалите failed apps (или весь stack) и задеплойте проект **заново целиком** (не только frontend).
-2. Убедитесь, что в логе setup есть создание сети **до** `Deploying semgasabe-leans-api`.
-3. Если есть кнопка «Create network» / «Setup stack» — выполните её первой.
-
-На сервере (если есть SSH, только по инструкции курса):
-
-```bash
-docker network create semgasabe-leans-net
-dokku network:set semgasabe-leans-api attach-post-deploy semgasabe-leans-net
-dokku network:set semgasabe-leans-frontend attach-post-deploy semgasabe-leans-net
-```
-
-### 2. `No web listeners specified for semgasabe-leans-frontend`
-
-Образ собрался, но Dokku не знал, что проксировать **порт 80**.
-
-**Исправление в репозитории:** файл `front/leanstock-frontend/app.json` с healthcheck на port **80** (уже добавлен).
-
-**В панели DeployRocks для frontend:**
-
-- **Web process / Container port:** `80`
-- **Dockerfile path:** `front/leanstock-frontend/Dockerfile` (или корень frontend-приложения)
-- Build-arg (опционально): `VITE_API_URL=https://semgasabe-leans-api.kazi.rocks/api/v1`
-
-После push — **Redeploy frontend**, затем API.
-
-### 3. SSL (`semgasabe-leans-frontend.crt` / `.key`)
-
-Это нормально — платформа ставит self-signed сертификат. Не ошибка сборки.
-
----
-
-## Переменные окружения — API (`semgasabe-leans-api`)
-
-| Переменная | Значение |
-|------------|----------|
-| `DATABASE_URL` | из `semgasabe-leans-db` |
-| `REDIS_URL` | из `semgasabe-leans-redis` |
-| `JWT_SECRET_KEY` | ≥ 32 символов |
-| `JWT_REFRESH_SECRET_KEY` | ≥ 32 символов |
-| `PORT` | `3000` |
-| `NODE_ENV` | `production` |
-| `TENANT_ID` | `1` |
-| `FRONTEND_URL` | `https://semgasabe-leans-frontend.kazi.rocks` |
-| `CORS_ORIGINS` | `https://semgasabe-leans-frontend.kazi.rocks,https://semgasabe-leans-api.kazi.rocks` |
-| `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS` | SMTP (Gmail app password) |
-| `SEED_DEV_ADMIN` | `false` в production |
-| `SEED_ADMIN_EMAIL` | `sabina.serzhan@narxoz.kz` (только dev) |
-
----
-
-## Пути в GitHub (монорепо LeanS)
-
-Если репозиторий **LeanS** с папкой `leanstock/`:
-
-| Компонент | Root directory в DeployRocks |
-|-----------|------------------------------|
-| API | `leanstock` (Dockerfile в корне leanstock) |
-| Frontend | `leanstock/front/leanstock-frontend` |
-
----
-
-## Проверка после успешного деплоя
+## Главная ошибка (из вашего лога)
 
 ```text
-https://semgasabe-leans-api.kazi.rocks/health          → {"status":"ok"}
-https://semgasabe-leans-frontend.kazi.rocks/           → React UI
-https://semgasabe-leans-api.kazi.rocks/api-docs        → Swagger
+Network semgasabe-leans-net does not exist
+No web listeners specified for semgasabe-leans-api / semgasabe-leans-frontend
 ```
 
-Логи:
-
-```bash
-dokku logs semgasabe-leans-api --tail 100
-dokku logs semgasabe-leans-frontend --tail 50
-```
+**Сборка Docker проходит.** Падает **запуск контейнера** — сеть не создана и Dokku не знает порты 3000 / 80.
 
 ---
 
-## Git push
+## Что видно в логе DeployRocks
+
+| Строка | Значение |
+|--------|----------|
+| `SEMGASABE_LEANS_API_URL: http://semgasabe-leans-api.web:5000` | **Неверно** — API слушает **3000**, не 5000 |
+| `Rewriting nginx upstream: api: → semgasabe-leans-api.web:` | В `nginx.conf` upstream должен быть **`api:3000`** |
+| `Domain: semgasabe-leans.kazi.rocks` | Публичный URL frontend |
+| `DEPLOYED_NETWORK=semgasabe-leans-net` | Сеть **заявлена**, но **не создана** до деплоя |
+
+---
+
+## Решение A — в панели DeployRocks (без SSH)
+
+### 1. Создать сеть / передеплой стека
+
+1. Удалите failed apps: `semgasabe-leans-api`, `semgasabe-leans-frontend` (или весь проект).
+2. Запустите **полный Deploy проекта** (не только frontend).
+3. Убедитесь, что в логе **до** `Deploying semgasabe-leans-api` есть шаг создания сети `semgasabe-leans-net`.
+4. Если есть опция **Create network** — включите.
+
+### 2. Порты (обязательно)
+
+| App | Container port | Публичный |
+|-----|----------------|-----------|
+| `semgasabe-leans-api` | **3000** | 80/443 → 3000 |
+| `semgasabe-leans-frontend` | **80** | 80/443 → 80 |
+
+В настройках каждого приложения: **Web Port / Proxy Port** = значения из таблицы.
+
+### 3. Переменные окружения
+
+**API (`semgasabe-leans-api`):**
+
+```env
+PORT=3000
+NODE_ENV=production
+DATABASE_URL=<from semgasabe-leans-db>
+REDIS_URL=<from semgasabe-leans-redis>
+JWT_SECRET_KEY=<32+ chars>
+JWT_REFRESH_SECRET_KEY=<32+ chars>
+FRONTEND_URL=https://semgasabe-leans.kazi.rocks
+CORS_ORIGINS=https://semgasabe-leans.kazi.rocks,https://semgasabe-leans-api.kazi.rocks
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=...
+EMAIL_PASS=...
+SEED_DEV_ADMIN=false
+```
+
+**Frontend (`semgasabe-leans-frontend`):**
+
+```env
+# НЕ используйте порт 5000:
+SEMGASABE_LEANS_API_URL=http://semgasabe-leans-api.web:3000
+```
+
+Или удалите `SEMGASABE_LEANS_API_URL` — nginx проксирует `/api/` сам.
+
+### 4. Пути в Git
+
+| App | Root directory |
+|-----|----------------|
+| API | `leanstock` |
+| Frontend | `leanstock/front/leanstock-frontend` |
+
+### 5. Push и redeploy
 
 ```powershell
-cd "c:\Users\sabis\OneDrive\Рабочий стол\LeanS\leanstock"
-git add front/leanstock-frontend/app.json front/leanstock-frontend/Dockerfile front/leanstock-frontend/nginx.conf DEPLOY.md
-git commit -m "fix: DeployRocks frontend port 80 healthcheck and Dokku network docs"
+cd leanstock
+git add front/leanstock-frontend/nginx.conf front/leanstock-frontend/Dockerfile front/leanstock-frontend/app.json app.json scripts/dokku-post-deploy.sh DEPLOY.md
+git commit -m "fix: DeployRocks nginx api:3000 upstream and deploy docs"
 git push origin main
 ```
 
-Затем в DeployRocks: **Redeploy всего проекта** (API + frontend + network).
+---
+
+## Решение B — SSH на сервер (если есть доступ)
+
+```bash
+chmod +x scripts/dokku-post-deploy.sh
+sudo scripts/dokku-post-deploy.sh
+```
+
+Скрипт создаёт сеть, выставляет `dokku ports:set` и перезапускает apps.
+
+---
+
+## Проверка после успеха
+
+```text
+https://semgasabe-leans-api.kazi.rocks/health
+https://semgasabe-leans.kazi.rocks/
+```
+
+(Точные домены смотрите в панели **dokku urls**.)
+
+```bash
+dokku logs semgasabe-leans-api --tail 50
+dokku logs semgasabe-leans-frontend --tail 20
+```
+
+В логах API должно быть: `[LeanStock] Server running on port 3000`.
+
+---
+
+## SSL (.crt / .key)
+
+Сообщения про `semgasabe-leans-api.crt` — **нормально** (self-signed). Это не причина падения деплоя.
+
+---
+
+## Если снова Failed
+
+Напишите в поддержку DeployRocks / преподавателю:
+
+> Deploy creates `semgasabe-leans-db` and redis, sets `DEPLOYED_NETWORK=semgasabe-leans-net`, but **does not create** the network before `scheduler-deploy-process-container`. Please fix network creation order or run `docker network create semgasabe-leans-net` before web deploy.

@@ -32,5 +32,7 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# Dokku / DeployRocks: declare web listener port (with app.json healthcheck port 3000)
+LABEL com.dokku.app-ports.web=3000
 
 ENTRYPOINT ["sh", "./entrypoint.sh"]
