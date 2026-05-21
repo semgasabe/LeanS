@@ -8,8 +8,6 @@ echo "Waiting for database (8s)..."
 sleep 8
 
 echo "Running migrations..."
-npx prisma migrate resolve --applied "20240519000000_init" 2>/dev/null || true
-
 max_attempts=20
 attempt=0
 until npx prisma migrate deploy; do
@@ -25,6 +23,19 @@ until npx prisma migrate deploy; do
   echo "DB not ready (${attempt}/${max_attempts}), retry in 2s..."
   sleep 2
 done
+
+echo "Verifying schema (User table)..."
+if ! node -e "
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+p.\$queryRawUnsafe('SELECT 1 FROM \"User\" LIMIT 1')
+  .then(() => process.exit(0))
+  .catch(() => process.exit(1))
+  .finally(() => p.\$disconnect());
+"; then
+  echo "WARN: User table missing (migration marked applied but schema empty). Running db push..."
+  npx prisma db push --accept-data-loss
+fi
 
 if [ "$NODE_ENV" = "development" ] || [ "$SEED_DEV_ADMIN" = "true" ]; then
   echo "Seeding dev admin (optional)..."

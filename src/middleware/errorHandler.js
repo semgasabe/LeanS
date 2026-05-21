@@ -33,6 +33,18 @@ function errorHandler(err, req, res, next) {
       code: 'FOREIGN_KEY_CONSTRAINT',
     });
   }
+  if (
+    err.code === 'P2021' ||
+    err.code === 'P1001' ||
+    err.code === 'P1017' ||
+    (err.message && /does not exist|relation.*User/i.test(err.message))
+  ) {
+    console.error('[ERROR] Database:', err.code, err.message);
+    return res.status(503).json({
+      error: 'Database schema missing. Redeploy API or run: npx prisma db push',
+      code: 'DATABASE_ERROR',
+    });
+  }
 
   // Zod validation errors
   if (err.name === 'ZodError') {

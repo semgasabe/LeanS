@@ -19,6 +19,7 @@ require('./jobs/emailQueue');
 const { scheduleDecayJobs } = require('./workers/scheduler');
 
 const jobController = require('./controllers/jobController');
+const prisma = require('./config/database');
 
 const app = express();
 
@@ -56,9 +57,28 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'leanstock-api', timestamp: new Date().toISOString() });
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  let database = 'ok';
+  let schema = 'ok';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err) {
+    database = 'error';
+    console.error('[Health] Database connection failed:', err.message);
+  }
+  if (database === 'ok') {
+    try {
+      await prisma.$queryRawUnsafe('SELECT 1 FROM "User" LIMIT 1');
+    } catch (err) {
+      schema = 'missing';
+      console.error('[Health] User table missing:', err.message);
+    }
+  }
+  const ok = database === 'ok' && schema === 'ok';
   res.json({
-    status: 'ok',
+    status: ok ? 'ok' : 'degraded',
+    database,
+    schema,
     gitRev: process.env.GIT_REV || 'unknown',
     timestamp: new Date().toISOString(),
   });
