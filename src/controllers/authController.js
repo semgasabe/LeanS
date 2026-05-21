@@ -17,11 +17,8 @@ function refreshCookieOptions() {
 }
 
 const register = asyncHandler(async (req, res) => {
-  const { user, accessToken, refreshToken } = await authService.register(req.body, TENANT_ID);
-
-  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
-
-  res.status(201).json({ user, accessToken });
+  const result = await authService.register(req.body, TENANT_ID, req.user);
+  res.status(201).json(result);
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -29,7 +26,7 @@ const login = asyncHandler(async (req, res) => {
 
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
-  res.json({ user, accessToken });
+  res.json({ user, accessToken, refreshToken });
 });
 
 const refresh = asyncHandler(async (req, res) => {
@@ -38,8 +35,9 @@ const refresh = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'No refresh token provided', code: 'UNAUTHORIZED' });
   }
 
-  const { accessToken } = await authService.refresh(token);
-  res.json({ accessToken });
+  const { accessToken, refreshToken } = await authService.refresh(token);
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+  res.json({ accessToken, refreshToken });
 });
 
 const logout = asyncHandler(async (req, res) => {
@@ -76,7 +74,7 @@ const me = asyncHandler(async (req, res) => {
 
 // NEW: Email verification
 const verifyEmail = asyncHandler(async (req, res) => {
-  const { token } = req.params;
+  const token = decodeURIComponent(req.params.token || '');
   const result = await authService.verifyEmail(token);
   res.json(result);
 });

@@ -2,27 +2,21 @@ services:
   api:
     build: .
     ports:
-      - "5000:3000"
+      - "${BACKEND_PORT:-3000}:3000"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://leanstock:leanstock@db:5432/leanstock
-      JWT_SECRET_KEY: super-secret-jwt-key-change-in-production-must-be-32chars
-      JWT_REFRESH_SECRET_KEY: super-secret-refresh-key-change-in-production-32chars
-      PORT: 3000
-      BACKEND_PORT: 3000
-      NODE_ENV: production
-      ENVIRONMENT: production
-      TENANT_ID: 1
       REDIS_URL: redis://redis:6379
-      CORS_ORIGINS: https://semgasabe-leanstock-frontend.kazi.rocks,https://semgasabe-leanstock.kazi.rocks
-      FRONTEND_URL: https://semgasabe-leanstock-frontend.kazi.rocks
-      DECAY_THRESHOLD_DAYS: 30
-      DECAY_PERCENT: 10
-      DECAY_MAX_PERCENT: 50
-      EMAIL_HOST: smtp.gmail.com
-      EMAIL_PORT: 587
-      EMAIL_USER: sabina.serzhan@narxoz.kz
-      EMAIL_PASS: enfbxwnrlpllcabw
-      EMAIL_FROM: noreply@leanstock.com
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000,https://semgasabe-leanstock-frontend.kazi.rocks,https://semgasabe-leanstock.kazi.rocks}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      NODE_ENV: ${NODE_ENV:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SEED_DEV_ADMIN: ${SEED_DEV_ADMIN:-true}
+      DECAY_THRESHOLD_DAYS: ${DECAY_THRESHOLD_DAYS:-30}
+      DECAY_PERCENT: ${DECAY_PERCENT:-10}
+      DECAY_MAX_PERCENT: ${DECAY_MAX_PERCENT:-50}
     depends_on:
       db:
         condition: service_healthy

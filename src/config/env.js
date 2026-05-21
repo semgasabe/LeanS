@@ -34,9 +34,22 @@ const PRODUCTION_CORS_DEFAULTS = [
   'https://semgasabe-leanstock.kazi.rocks',
 ];
 
+const DEV_CORS_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
 function buildCorsOrigins() {
   if (process.env.CORS_ORIGINS) {
-    return process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+    const fromEnv = process.env.CORS_ORIGINS.split(',')
+      .map((o) => o.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean);
+    if (NODE_ENV !== 'production' || process.env.ENVIRONMENT === 'development') {
+      return [...new Set([...fromEnv, ...DEV_CORS_ORIGINS])];
+    }
+    return fromEnv;
   }
   const origins = new Set([
     FRONTEND_URL,

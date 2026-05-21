@@ -9,6 +9,7 @@
     "migrate": "npx prisma migrate deploy",
     "migrate:dev": "npx prisma migrate dev",
     "generate": "npx prisma generate",
+    "seed": "node prisma/seed.js",
     "test": "jest --runInBand --forceExit",
     "lint": "eslint src/ tests/ --max-warnings 0"
   },

@@ -6,7 +6,7 @@ process.env.JWT_SECRET = 'test-secret-key-that-is-long-enough-32chars';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-key-long-enough-here';
 process.env.PORT = '3001';
 process.env.NODE_ENV = 'test';
-process.env.TENANT_ID = 'tenant_test';
+process.env.TENANT_ID = '1';
 
 require('./helpers');
 
@@ -69,25 +69,30 @@ describe('JWT token utilities', () => {
 // ── Integration: POST /api/v1/auth/register ───────────────────────────────
 
 describe('POST /api/v1/auth/register', () => {
-  test('201: valid registration returns user + accessToken', async () => {
+  test('201: valid registration returns user and verification message (no tokens)', async () => {
+    prisma.tenant = prisma.tenant || { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() };
+    prisma.tenant.findUnique.mockResolvedValueOnce({ id: 1, name: 'T' });
     prisma.user.findUnique.mockResolvedValueOnce(null);
+    prisma.user.findFirst.mockResolvedValueOnce(null);
     prisma.user.create.mockResolvedValueOnce({
       id: 'user1',
       email: 'new@test.com',
       name: 'New User',
       role: 'STAFF',
-      tenantId: 'tenant_test',
+      tenantId: 1,
+      emailVerified: false,
       createdAt: new Date(),
     });
-    prisma.refreshToken.create.mockResolvedValueOnce({});
+    prisma.auditLog.create.mockResolvedValueOnce({});
 
     const res = await request(app)
       .post('/api/v1/auth/register')
       .send({ email: 'new@test.com', password: 'StrongPass123', name: 'New User' });
 
     expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('accessToken');
-    expect(res.body.user).not.toHaveProperty('password');
+    expect(res.body).toHaveProperty('message');
+    expect(res.body).not.toHaveProperty('accessToken');
+    expect(res.body.user.emailVerified).toBe(false);
   });
 
   test('422: short password is rejected', async () => {

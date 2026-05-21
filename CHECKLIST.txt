@@ -2,7 +2,7 @@ LeanStock — Deployment & Feature Checklist
 ==========================================
 
 Deployment
-[ ] docker-compose.yml: API 5000:3000, frontend 80:80
+[ ] docker-compose.yml: API ${BACKEND_PORT:-3000}:3000, frontend 80:80
 [ ] Dockerfile ENTRYPOINT uses entrypoint.sh (DB wait 10+ seconds)
 [ ] API healthcheck on /health
 [ ] DEPLOYED_URL.txt points to production URL

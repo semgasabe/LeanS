@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_API_PROXY || 'http://localhost:3000',
           changeOrigin: true,
+          secure: false,
+          cookieDomainRewrite: 'localhost',
         },
       },
     },

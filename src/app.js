@@ -22,15 +22,19 @@ const jobController = require('./controllers/jobController');
 
 const app = express();
 
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (NODE_ENV !== 'production') return true;
+  if (process.env.ENVIRONMENT === 'development') return true;
+  return CORS_ORIGINS.includes(origin);
+}
+
 const corsOptions = {
   origin(origin, callback) {
-    if (NODE_ENV !== 'production') {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
-    if (!origin || CORS_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
-    console.warn(`[CORS] Blocked origin: ${origin}`);
+    console.warn(`[CORS] Blocked origin: ${origin}. Allowed: ${CORS_ORIGINS.join(', ')}`);
     return callback(null, false);
   },
   credentials: true,

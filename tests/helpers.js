@@ -29,6 +29,11 @@ jest.mock('../src/config/database', () => ({
     create: jest.fn(),
     createMany: jest.fn(),
   },
+  tenant: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
   auditLog: { create: jest.fn() },
   product: {
     findFirst: jest.fn(),
@@ -74,10 +79,14 @@ jest.mock('../src/config/redis', () => null);
 // Audit service - mock so tests don't worry about it
 jest.mock('../src/services/auditService', () => ({ log: jest.fn() }));
 
+jest.mock('../src/jobs/emailQueue', () => ({
+  emailQueue: { add: jest.fn().mockResolvedValue({ id: 'job-1' }) },
+}));
+
 // Set env vars before anything loads
 process.env.JWT_SECRET = 'test-secret-key-that-is-long-enough-32chars';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-key-long-enough-here';
-process.env.TENANT_ID = 'tenant_test';
+process.env.TENANT_ID = '1';
 process.env.DATABASE_URL = 'postgresql://test';
 process.env.PORT = '3001';
 process.env.NODE_ENV = 'test';

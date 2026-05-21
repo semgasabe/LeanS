@@ -1,12 +1,20 @@
 import axios from 'axios'
 
-// Production: /api/v1 (proxied by nginx to backend). Dev: vite proxy or .env override.
 const baseURL = import.meta.env.VITE_API_URL || '/api/v1'
 
 const api = axios.create({
   baseURL,
   withCredentials: true,
 })
+
+function isAuthEndpoint(url = '') {
+  return /\/auth\/(login|register|refresh|logout)(\?|$)/.test(url)
+}
+
+function clearSession() {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+}
 
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('access_token')
@@ -20,30 +28,55 @@ api.interceptors.response.use(
   (r) => r,
   async (err) => {
     const orig = err.config
-    if (err.response?.status === 401 && !orig._retry) {
-      orig._retry = true
-      const refreshBase = import.meta.env.VITE_API_URL || '/api/v1'
-      if (!refreshing) {
-        refreshing = axios
-          .post(`${refreshBase}/auth/refresh`, {}, { withCredentials: true })
-          .then((r) => {
+    const status = err.response?.status
+
+    if (status !== 401 || !orig || orig._retry || isAuthEndpoint(orig.url)) {
+      return Promise.reject(err)
+    }
+
+    const storedRefresh = localStorage.getItem('refresh_token')
+    if (!storedRefresh) {
+      clearSession()
+      const onPublic = /^\/(login|register|forgot-password|reset-password|verify)/.test(
+        window.location.pathname
+      )
+      if (!onPublic) window.location.href = '/login'
+      return Promise.reject(err)
+    }
+
+    orig._retry = true
+
+    if (!refreshing) {
+      refreshing = axios
+        .post(`${baseURL}/auth/refresh`, { refreshToken: storedRefresh }, { withCredentials: true })
+        .then((r) => {
+          if (r.data.accessToken) {
             localStorage.setItem('access_token', r.data.accessToken)
-            refreshing = null
-            return r.data.accessToken
-          })
-          .catch((e) => {
-            refreshing = null
-            localStorage.removeItem('access_token')
-            window.location.href = '/login'
-            return Promise.reject(e)
-          })
-      }
+          }
+          if (r.data.refreshToken) {
+            localStorage.setItem('refresh_token', r.data.refreshToken)
+          }
+          refreshing = null
+          return r.data.accessToken
+        })
+        .catch((e) => {
+          refreshing = null
+          clearSession()
+          const onPublic = /^\/(login|register|forgot-password)/.test(window.location.pathname)
+          if (!onPublic) window.location.href = '/login'
+          return Promise.reject(e)
+        })
+    }
+
+    try {
       const token = await refreshing
       orig.headers.Authorization = `Bearer ${token}`
       return api(orig)
+    } catch (e) {
+      return Promise.reject(e)
     }
-    return Promise.reject(err)
   }
 )
 
+export { clearSession }
 export default api

@@ -20,7 +20,12 @@ export default function Login() {
       toast('Welcome back!', 'success')
       navigate('/')
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid email or password')
+      const data = err.response?.data
+      if (data?.code === 'EMAIL_NOT_VERIFIED') {
+        setError('Verify your email first (check inbox or use the link from registration).')
+      } else {
+        setError(data?.error || 'Invalid email or password')
+      }
     } finally {
       setLoading(false)
     }

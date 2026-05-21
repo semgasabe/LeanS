@@ -22,6 +22,10 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+function normalizeEmail(email) {
+  return String(email).trim().toLowerCase();
+}
+
 function makeTokenPayload(user) {
   return { 
     userId: user.id, 
@@ -38,7 +42,10 @@ function getTenantNameFromEmail(email) {
 }
 
 async function register(data, tenantId, currentUser) {
-  const validated = registerSchema.parse(data);
+  const validated = registerSchema.parse({
+    ...data,
+    email: normalizeEmail(data.email),
+  });
 
   let tenant = null;
 
@@ -108,13 +115,12 @@ async function register(data, tenantId, currentUser) {
       name: validated.name,
       role: validated.role,
       tenantId: tenant.id,
-      emailVerified: true, // Временно для теста
+      emailVerified: false,
       verificationToken,
       verificationExpires,
     },
   });
 
-  // Audit log
   await prisma.auditLog.create({
     data: {
       tenantId: user.tenantId,
@@ -122,11 +128,10 @@ async function register(data, tenantId, currentUser) {
       action: 'REGISTER',
       tableName: 'User',
       recordId: user.id,
-      newValues: { email: user.email, role: user.role, name: user.name }
-    }
+      newValues: { email: user.email, role: user.role, name: user.name },
+    },
   });
 
-  // Отправка email в очередь
   await emailQueue.add('send-verification', {
     type: 'send-verification',
     email: user.email,
@@ -134,25 +139,24 @@ async function register(data, tenantId, currentUser) {
     name: user.name,
   });
 
-  const payload = makeTokenPayload(user);
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
-
-  const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await prisma.refreshToken.create({
-    data: { token: refreshToken, userId: user.id, expiresAt: refreshExpiry },
-  });
-
   const { password: _, tenantId: __, verificationToken: ___, verificationExpires: ____, ...safeUser } = user;
-  return { user: safeUser, accessToken, refreshToken };
+  return {
+    user: safeUser,
+    message: 'Registration successful. Please verify your email before logging in.',
+  };
 }
 
 async function verifyEmail(token) {
+  const trimmed = String(token || '').trim();
+  if (!trimmed) {
+    const err = new Error('Invalid or expired verification token');
+    err.status = 400;
+    err.code = 'INVALID_TOKEN';
+    throw err;
+  }
+
   const user = await prisma.user.findFirst({
-    where: {
-      verificationToken: token,
-      verificationExpires: { gt: new Date() },
-    },
+    where: { verificationToken: trimmed },
   });
 
   if (!user) {
@@ -162,12 +166,22 @@ async function verifyEmail(token) {
     throw err;
   }
 
+  if (user.emailVerified) {
+    return { message: 'Email already verified. You can sign in.' };
+  }
+
+  if (user.verificationExpires && user.verificationExpires < new Date()) {
+    const err = new Error('Verification link has expired. Please register again.');
+    err.status = 400;
+    err.code = 'TOKEN_EXPIRED';
+    throw err;
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: {
       emailVerified: true,
-      verificationToken: null,
-      verificationExpires: null,
+      // Keep token until expiry so double-clicks / StrictMode don't show an error
     },
   });
 
@@ -178,15 +192,18 @@ async function verifyEmail(token) {
       action: 'VERIFY_EMAIL',
       tableName: 'User',
       recordId: user.id,
-      newValues: { emailVerified: true }
-    }
+      newValues: { emailVerified: true },
+    },
   });
 
-  return { message: 'Email verified successfully' };
+  return { message: 'Email verified successfully. You can sign in now.' };
 }
 
 async function login(data) {
-  const validated = loginSchema.parse(data);
+  const validated = loginSchema.parse({
+    ...data,
+    email: normalizeEmail(data.email),
+  });
 
   const user = await prisma.user.findUnique({ where: { email: validated.email } });
   if (!user) {
@@ -352,7 +369,7 @@ async function refresh(refreshToken) {
     }
   });
 
-  return { accessToken };
+  return { accessToken, refreshToken };
 }
 
 async function logout(refreshToken) {
